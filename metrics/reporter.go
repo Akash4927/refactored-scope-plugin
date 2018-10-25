@@ -9,6 +9,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	queries = []string{
+		"iopsReadQuery",
+		"iopsWriteQuery",
+		"latencyReadQuery",
+		"latencyWriteQuery",
+		"throughputReadQuery",
+		"throughputWriteQuery",
+	}
+)
+
 // Report is called by scope when a new report is needed. It is part of the
 // "reporter" interface, which all plugins must implement.
 func (p *PVMetrics) Report(w http.ResponseWriter, r *http.Request) {
@@ -38,31 +49,55 @@ func (p *PVMetrics) makeReport() (*report, error) {
 	updatedMetrics := make(map[string][]float64)
 	resource := make(map[string]node)
 
-	for _, queryValue := range p.Data {
-		for k, v := range queryValue {
-			metrics[k] = append(metrics[k], v)
+	if p.Data != nil {
+		for _, queryName := range queries {
+			if p.Data[queryName] == nil {
+				for k := range metrics {
+					metrics[k] = append(metrics[k], 0)
+				}
+			} else {
+				for k, v := range p.Data[queryName] {
+					metrics[k] = append(metrics[k], v)
+				}
+			}
 		}
-	}
 
-	for pvName, pvUID := range p.PVList {
-		updatedMetrics[p.getPVTopology(pvUID)] = metrics[pvName]
-	}
-
-	for pvNodeID := range updatedMetrics {
-		resource[pvNodeID] = node{
-			Metrics: p.metrics(updatedMetrics[pvNodeID]),
+		for pvName, pvUID := range p.PVList {
+			updatedMetrics[p.getPVTopology(pvUID)] = metrics[pvName]
 		}
+
+		for pvNodeID := range updatedMetrics {
+			resource[pvNodeID] = node{
+				Metrics: p.metrics(updatedMetrics[pvNodeID]),
+			}
+		}
+		rpt := &report{
+			PersistentVolume: topology{
+				Nodes:           resource,
+				MetricTemplates: p.metricTemplates(),
+			},
+			Plugins: []pluginSpec{
+				{
+					ID:          "openebs",
+					Label:       "OpenEBS Monitor Plugin",
+					Description: "OpenEBS Monitor Plugin: Monitor OpeneEBS volumes",
+					Interfaces:  []string{"reporter"},
+					APIVersion:  "1",
+				},
+			},
+		}
+		return rpt, nil
 	}
 	rpt := &report{
 		PersistentVolume: topology{
-			Nodes:           resource,
+			Nodes:           nil,
 			MetricTemplates: p.metricTemplates(),
 		},
 		Plugins: []pluginSpec{
 			{
 				ID:          "openebs",
-				Label:       "OpenEBS Plugin",
-				Description: "Adds graphs of metrics of OpenEBS PV",
+				Label:       "OpenEBS Monitor Plugin",
+				Description: "OpenEBS Monitor Plugin: Monitor OpeneEBS volumes",
 				Interfaces:  []string{"reporter"},
 				APIVersion:  "1",
 			},

@@ -30,7 +30,7 @@ func NewMetrics() PVMetrics {
 			"iopsWriteQuery":       "increase(openebs_writes[5m])/300",
 			"latencyReadQuery":     "((increase(openebs_read_time[5m]))/(increase(openebs_reads[5m])))/1000000",
 			"latencyWriteQuery":    "((increase(openebs_write_time[5m]))/(increase(openebs_writes[5m])))/1000000",
-			"throughputReadQuery":  "increase(openebs_read_blocPVNameAndUIDk_count[5m])/(1024*1024*60*5)",
+			"throughputReadQuery":  "increase(openebs_read_block_count[5m])/(1024*1024*60*5)",
 			"throughputWriteQuery": "increase(openebs_write_block_count[5m])/(1024*1024*60*5)",
 		},
 		PVList: nil,
@@ -42,13 +42,13 @@ func NewMetrics() PVMetrics {
 func (p *PVMetrics) UpdateMetrics() {
 	for {
 		data := make(map[string]map[string]float64)
-		// pvMetricsValue holds pv  and value for the given query
-		pvMetricsvalue := make(map[string]float64)
 		for queryName, query := range p.Queries {
-			pvMetricsvalue := p.GetMetrics(pvMetricsvalue, query)
-			log.Infof("pvMetricsValue :- %+v", pvMetricsvalue)
+			pvMetricsvalue := p.GetMetrics(query)
+			if pvMetricsvalue == nil {
+				data = nil
+				break
+			}
 			data[queryName] = pvMetricsvalue
-			log.Infof("Data %s :- %+v", queryName, data)
 		}
 
 		if data != nil {
@@ -57,13 +57,12 @@ func (p *PVMetrics) UpdateMetrics() {
 			Mutex.Unlock()
 		}
 
-		//log.Infof("P.Data :- %+v", p.Data)
 		p.GetPVList()
-		time.Sleep(60 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
-func (p *PVMetrics) GetMetrics(pvMetricsValue map[string]float64, query string) map[string]float64 {
+func (p *PVMetrics) GetMetrics(query string) map[string]float64 {
 	response, err := http.Get(URL + query)
 	if err != nil {
 		log.Error(err)
@@ -82,6 +81,8 @@ func (p *PVMetrics) GetMetrics(pvMetricsValue map[string]float64, query string) 
 		return nil
 	}
 
+	pvMetricsValue := make(map[string]float64)
+
 	for _, pvMetric := range pvMetrics.Data.Result {
 		if pvMetric.Value[1].(string) == "NaN" {
 			pvMetricsValue[pvMetric.Metric.OpenebsPv] = 0
@@ -95,8 +96,6 @@ func (p *PVMetrics) GetMetrics(pvMetricsValue map[string]float64, query string) 
 			}
 		}
 	}
-
-	//log.Infof("pvMetrics :- %+v", pvMetrics)
 
 	return pvMetricsValue
 }
