@@ -40,14 +40,20 @@ func (p *PVMetrics) Report(w http.ResponseWriter, r *http.Request) {
 	w.Write(raw)
 }
 
+// getPVTopology will create a UID by appending the UID with resource name.
 func (p *PVMetrics) getPVTopology(PersistentVolumeUID string) string {
 	return fmt.Sprintf("%s;<persistent_volume>", PersistentVolumeUID)
 }
 
+// makeReport will create the report.
 func (p *PVMetrics) makeReport() (*report, error) {
 	metrics := make(map[string][]float64)
 	updatedMetrics := make(map[string][]float64)
 	resource := make(map[string]node)
+
+	for pvName := range p.PVList {
+		metrics[pvName] = []float64{}
+	}
 
 	if p.Data != nil {
 		for _, queryName := range queries {
@@ -113,7 +119,7 @@ func (p *PVMetrics) metrics(data []float64) map[string]metric {
 			Samples: []sample{
 				{
 					Date:  time.Now(),
-					Value: data[0],
+					Value: float64(int(data[0])),
 				},
 			},
 			Min: 0,
@@ -123,7 +129,7 @@ func (p *PVMetrics) metrics(data []float64) map[string]metric {
 			Samples: []sample{
 				{
 					Date:  time.Now(),
-					Value: data[1],
+					Value: float64(int(data[1])),
 				},
 			},
 			Min: 0,

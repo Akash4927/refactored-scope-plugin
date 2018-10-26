@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/akash4927/scope-plugin/k8s"
+	"github.com/openebs/scope-plugin/k8s"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,12 +40,15 @@ func NewMetrics() PVMetrics {
 
 // UpdateMetrics will update the metrics data and PV list
 func (p *PVMetrics) UpdateMetrics() {
+	// Wait till cortex-agent fetch the PV Metrics
+	// time.Sleep(time.Duration(90) * time.Second)
 	for {
 		data := make(map[string]map[string]float64)
 		for queryName, query := range p.Queries {
 			pvMetricsvalue := p.GetMetrics(query)
 			if pvMetricsvalue == nil {
 				data = nil
+				log.Infof("Failed to fetch metrics for %s", queryName)
 				break
 			}
 			data[queryName] = pvMetricsvalue
@@ -58,10 +61,11 @@ func (p *PVMetrics) UpdateMetrics() {
 		}
 
 		p.GetPVList()
-		time.Sleep(10 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }
 
+// GetMetrics will return the metrics for the given query.
 func (p *PVMetrics) GetMetrics(query string) map[string]float64 {
 	response, err := http.Get(URL + query)
 	if err != nil {
@@ -81,8 +85,11 @@ func (p *PVMetrics) GetMetrics(query string) map[string]float64 {
 		return nil
 	}
 
-	pvMetricsValue := make(map[string]float64)
+	if len(pvMetrics.Data.Result) == 0 {
+		return nil
+	}
 
+	pvMetricsValue := make(map[string]float64)
 	for _, pvMetric := range pvMetrics.Data.Result {
 		if pvMetric.Value[1].(string) == "NaN" {
 			pvMetricsValue[pvMetric.Metric.OpenebsPv] = 0
@@ -100,7 +107,7 @@ func (p *PVMetrics) GetMetrics(query string) map[string]float64 {
 	return pvMetricsValue
 }
 
-// GetPVList updates the list of PV
+// GetPVList fetch and update the list of PV.
 func (p *PVMetrics) GetPVList() {
 	pvList, err := k8s.ClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
 	if err != nil {
@@ -111,7 +118,7 @@ func (p *PVMetrics) GetPVList() {
 	p.PVList = p.PVNameAndUID(pvList.Items)
 }
 
-// PVNameAndUID returns the name and UID of all the PVs
+// PVNameAndUID returns the name and UID of all the PVs.
 func (p *PVMetrics) PVNameAndUID(pvListItems []corev1.PersistentVolume) map[string]string {
 	pvList := make(map[string]string)
 	for _, pv := range pvListItems {
@@ -120,7 +127,7 @@ func (p *PVMetrics) PVNameAndUID(pvListItems []corev1.PersistentVolume) map[stri
 	return pvList
 }
 
-// UnmarshalResponse unmarshal the obtained Metric json
+// UnmarshalResponse unmarshal the obtained Metric json.
 func (p *PVMetrics) UnmarshalResponse(response []byte) (*Metrics, error) {
 	metric := new(Metrics)
 	err := json.Unmarshal(response, &metric)

@@ -16,7 +16,7 @@ spec:
       serviceAccountName: weave-scope
       containers:
         - name: openebs-iops-plugin
-          image: akash4927/scope-plugin:latest
+          image: openebs/scope-plugin:latest
           imagePullPolicy: Always
           securityContext:
             privileged: true
