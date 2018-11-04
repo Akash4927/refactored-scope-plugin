@@ -59,7 +59,7 @@ func (p *PVMetrics) UpdatePVMetrics() {
 
 		if pvMetricsvalue == nil {
 			data = nil
-			//log.Infof("Failed to fetch metrics for %s", queryName)
+			log.Infof("Failed to fetch metrics for %s", queryName)
 			break
 		}
 		data[queryName] = pvMetricsvalue

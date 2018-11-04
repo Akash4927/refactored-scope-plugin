@@ -55,9 +55,7 @@ func (p *PVMetrics) makeReport() (*report, error) {
 		metrics[pvName] = []float64{0, 0, 0, 0, 0, 0}
 	}
 
-	if p.Data != nil || p.PVList != nil || metrics != nil {
-		log.Infof("Metrics map ----------------------------------------- %+v", metrics)
-		log.Infof("Length of metrics >>>>>>>>>>>>>>>>>>>>>>> %+v", len(metrics))
+	if p.Data != nil && p.PVList != nil && len(metrics) > 0 {
 		for index, queryName := range queries {
 			if p.Data[queryName] == nil {
 				for k := range metrics {
@@ -121,7 +119,7 @@ func (p *PVMetrics) metrics(data []float64) map[string]metric {
 			Samples: []sample{
 				{
 					Date:  time.Now(),
-					Value: float64(int(data[0])),
+					Value: float64(int(data[0] + 0.5)),
 				},
 			},
 			Min: 0,
@@ -131,7 +129,7 @@ func (p *PVMetrics) metrics(data []float64) map[string]metric {
 			Samples: []sample{
 				{
 					Date:  time.Now(),
-					Value: float64(int(data[1])),
+					Value: float64(int(data[1] + 0.5)),
 				},
 			},
 			Min: 0,
