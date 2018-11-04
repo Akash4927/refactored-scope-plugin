@@ -6,21 +6,21 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// ClientSet contains kubernetes client.
-var (
-	ClientSet *kubernetes.Clientset
-)
-
-func init() {
+// NewClientSet will create a new InCluster config for k8s cluster
+func NewClientSet() kubernetes.Interface {
 	// creating in-cluster config.
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Error(err)
+		return nil
 	}
 
 	// create clientset of kubernetes.
-	ClientSet, err = kubernetes.NewForConfig(config)
+	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Error(err)
+		return nil
 	}
+
+	return clientSet
 }

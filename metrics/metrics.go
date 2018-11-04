@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -33,60 +34,65 @@ func NewMetrics() PVMetrics {
 			"throughputReadQuery":  "increase(openebs_read_block_count[5m])/(1024*1024*60*5)",
 			"throughputWriteQuery": "increase(openebs_write_block_count[5m])/(1024*1024*60*5)",
 		},
-		PVList: nil,
-		Data:   nil,
+		PVList:    nil,
+		Data:      nil,
+		ClientSet: k8s.NewClientSet(),
 	}
 }
 
 // UpdateMetrics will update the metrics data and PV list
 func (p *PVMetrics) UpdateMetrics() {
-	// Wait till cortex-agent fetch the PV Metrics
-	// time.Sleep(time.Duration(90) * time.Second)
 	for {
-		data := make(map[string]map[string]float64)
-		for queryName, query := range p.Queries {
-			pvMetricsvalue := p.GetMetrics(query)
-			if pvMetricsvalue == nil {
-				data = nil
-				log.Infof("Failed to fetch metrics for %s", queryName)
-				break
-			}
-			data[queryName] = pvMetricsvalue
-		}
-
-		if data != nil {
-			Mutex.Lock()
-			p.Data = data
-			Mutex.Unlock()
-		}
-
-		p.GetPVList()
+		p.UpdatePVMetrics()
 		time.Sleep(2 * time.Second)
 	}
 }
 
+// UpdatePVMetrics will update the PVMetrics struct object with the required data
+func (p *PVMetrics) UpdatePVMetrics() {
+	data := make(map[string]map[string]float64)
+	for queryName, query := range p.Queries {
+		pvMetricsvalue, err := p.GetMetrics(query)
+		if err != nil {
+			log.Error(err)
+		}
+
+		if pvMetricsvalue == nil {
+			data = nil
+			//log.Infof("Failed to fetch metrics for %s", queryName)
+			break
+		}
+		data[queryName] = pvMetricsvalue
+	}
+
+	if data != nil {
+		Mutex.Lock()
+		p.Data = data
+		Mutex.Unlock()
+	}
+
+	p.GetPVList()
+}
+
 // GetMetrics will return the metrics for the given query.
-func (p *PVMetrics) GetMetrics(query string) map[string]float64 {
+func (p *PVMetrics) GetMetrics(query string) (map[string]float64, error) {
 	response, err := http.Get(URL + query)
 	if err != nil {
-		log.Error(err)
-		return nil
+		return nil, err
 	}
 
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Error(err)
-		return nil
+		return nil, err
 	}
 
 	pvMetrics, err := p.UnmarshalResponse([]byte(responseBody))
 	if err != nil {
-		log.Error(err)
-		return nil
+		return nil, err
 	}
 
 	if len(pvMetrics.Data.Result) == 0 {
-		return nil
+		return nil, errors.New("Result is empty")
 	}
 
 	pvMetricsValue := make(map[string]float64)
@@ -104,12 +110,12 @@ func (p *PVMetrics) GetMetrics(query string) map[string]float64 {
 		}
 	}
 
-	return pvMetricsValue
+	return pvMetricsValue, nil
 }
 
 // GetPVList fetch and update the list of PV.
 func (p *PVMetrics) GetPVList() {
-	pvList, err := k8s.ClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	pvList, err := p.ClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
 	if err != nil {
 		log.Error(err)
 		return

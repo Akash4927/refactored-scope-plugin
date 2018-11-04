@@ -52,18 +52,20 @@ func (p *PVMetrics) makeReport() (*report, error) {
 	resource := make(map[string]node)
 
 	for pvName := range p.PVList {
-		metrics[pvName] = []float64{}
+		metrics[pvName] = []float64{0, 0, 0, 0, 0, 0}
 	}
 
-	if p.Data != nil {
-		for _, queryName := range queries {
+	if p.Data != nil || p.PVList != nil || metrics != nil {
+		log.Infof("Metrics map ----------------------------------------- %+v", metrics)
+		log.Infof("Length of metrics >>>>>>>>>>>>>>>>>>>>>>> %+v", len(metrics))
+		for index, queryName := range queries {
 			if p.Data[queryName] == nil {
 				for k := range metrics {
-					metrics[k] = append(metrics[k], 0)
+					metrics[k][index] = 0
 				}
 			} else {
 				for k, v := range p.Data[queryName] {
-					metrics[k] = append(metrics[k], v)
+					metrics[k][index] = v
 				}
 			}
 		}

@@ -54,6 +54,7 @@ func main() {
 	}()
 
 	pvMetrics := metrics.NewMetrics()
+	pvMetrics.GetPVList()
 
 	go pvMetrics.UpdateMetrics()
 

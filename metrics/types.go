@@ -1,6 +1,10 @@
 package metrics
 
-import "time"
+import (
+	"time"
+
+	"k8s.io/client-go/kubernetes"
+)
 
 type sample struct {
 	Date  time.Time `json:"date"`
@@ -52,25 +56,33 @@ type response struct {
 
 // PVMetrics will store all the queries and data.
 type PVMetrics struct {
-	Queries map[string]string
-	PVList  map[string]string
-	Data    map[string]map[string]float64
+	Queries   map[string]string
+	PVList    map[string]string
+	Data      map[string]map[string]float64
+	ClientSet kubernetes.Interface
+}
+
+type Metric struct {
+	Name              string `json:"__name__"`
+	Instance          string `json:"instance"`
+	Job               string `json:"job"`
+	KubernetesPodName string `json:"kubernetes_pod_name"`
+	OpenebsPv         string `json:"openebs_pv"`
+	OpenebsPvc        string `json:"openebs_pvc"`
+}
+
+type Result struct {
+	Metric Metric        `json:"metric"`
+	Value  []interface{} `json:"value"`
+}
+
+type Data struct {
+	ResultType string   `json:"resultType"`
+	Result     []Result `json:"result"`
 }
 
 // Metrics stores the json provided by cortex agent.
 type Metrics struct {
 	Status string `json:"status"`
-	Data   struct {
-		ResultType string `json:"resultType"`
-		Result     []struct {
-			Metric struct {
-				Name              string `json:"__name__"`
-				Instance          string `json:"instance"`
-				Job               string `json:"job"`
-				KubernetesPodName string `json:"kubernetes_pod_name"`
-				OpenebsPv         string `json:"openebs_pv"`
-			} `json:"metric"`
-			Value []interface{} `json:"value"`
-		} `json:"result"`
-	} `json:"data"`
+	Data   Data   `json:"data"`
 }
