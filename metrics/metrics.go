@@ -16,7 +16,7 @@ import (
 )
 
 // URL is the address of cortex agent.
-const (
+var (
 	URL = "http://cortex-agent-service.maya-system.svc.cluster.local:80/api/v1/query?query="
 )
 

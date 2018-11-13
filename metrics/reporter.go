@@ -23,13 +23,7 @@ var (
 // Report is called by scope when a new report is needed. It is part of the
 // "reporter" interface, which all plugins must implement.
 func (p *PVMetrics) Report(w http.ResponseWriter, r *http.Request) {
-	rpt, err := p.makeReport()
-	if err != nil {
-		log.Errorf("error: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+	rpt := p.makeReport()
 	raw, err := json.Marshal(*rpt)
 	if err != nil {
 		log.Errorf("error: %v", err)
@@ -46,7 +40,7 @@ func (p *PVMetrics) getPVTopology(PersistentVolumeUID string) string {
 }
 
 // makeReport will create the report.
-func (p *PVMetrics) makeReport() (*report, error) {
+func (p *PVMetrics) makeReport() *report {
 	metrics := make(map[string][]float64)
 	updatedMetrics := make(map[string][]float64)
 	resource := make(map[string]node)
@@ -59,11 +53,15 @@ func (p *PVMetrics) makeReport() (*report, error) {
 		for index, queryName := range queries {
 			if p.Data[queryName] == nil {
 				for k := range metrics {
-					metrics[k][index] = 0
+					if _, ok := metrics[k]; ok {
+						metrics[k][index] = 0
+					}
 				}
 			} else {
 				for k, v := range p.Data[queryName] {
-					metrics[k][index] = v
+					if _, ok := metrics[k]; ok {
+						metrics[k][index] = v
+					}
 				}
 			}
 		}
@@ -92,8 +90,9 @@ func (p *PVMetrics) makeReport() (*report, error) {
 				},
 			},
 		}
-		return rpt, nil
+		return rpt
 	}
+
 	rpt := &report{
 		PersistentVolume: topology{
 			Nodes:           nil,
@@ -109,7 +108,7 @@ func (p *PVMetrics) makeReport() (*report, error) {
 			},
 		},
 	}
-	return rpt, nil
+	return rpt
 }
 
 // Create the Metrics type on top-left side

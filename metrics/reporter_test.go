@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
@@ -14,6 +16,45 @@ var FieldsWithOnePV = &fields{
 		"testPV": "abcdef1234",
 	},
 	Data:      nil,
+	ClientSet: fake.NewSimpleClientset(),
+}
+
+var FieldsWithOnePVAndSinglePVData = &fields{
+	Queries: nil,
+	PVList: map[string]string{
+		"testPV": "abcdef1234",
+	},
+	Data: map[string]map[string]float64{
+		"iopsWriteQuery": map[string]float64{
+			"testPV": 5,
+		},
+	},
+	ClientSet: fake.NewSimpleClientset(),
+}
+
+var FieldsWithOnePVAndMultiplePVData = &fields{
+	Queries: nil,
+	PVList: map[string]string{
+		"testPV": "abcdef1234",
+	},
+	Data: map[string]map[string]float64{
+		"iopsWriteQuery": map[string]float64{
+			"testPV":  5,
+			"testPV1": 6,
+		},
+	},
+	ClientSet: fake.NewSimpleClientset(),
+}
+
+var FieldsWithNoPV = &fields{
+	Queries: nil,
+	PVList:  nil,
+	Data: map[string]map[string]float64{
+		"iopsWriteQuery": map[string]float64{
+			"testPV":  5,
+			"testPV1": 6,
+		},
+	},
 	ClientSet: fake.NewSimpleClientset(),
 }
 
@@ -258,10 +299,9 @@ func TestPVMetrics_getPVTopology(t *testing.T) {
 
 func TestPVMetrics_makeReport(t *testing.T) {
 	tests := []struct {
-		name    string
-		fields  *fields
-		want    *report
-		wantErr bool
+		name   string
+		fields *fields
+		want   *report
 	}{
 		{
 			name:   "when data and PV list are empty",
@@ -281,7 +321,6 @@ func TestPVMetrics_makeReport(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:   "when data is nil and PV list has one PV",
@@ -301,7 +340,193 @@ func TestPVMetrics_makeReport(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
+		},
+		{
+			name:   "when data has one PV value and PV list has one PV",
+			fields: FieldsWithOnePVAndSinglePVData,
+			want: &report{
+				PersistentVolume: topology{
+					Nodes: map[string]node{
+						"abcdef1234;<persistent_volume>": node{
+							Metrics: map[string]metric{
+								"readIops": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"writeIops": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 5,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"readLatency": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"writeLatency": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"readThroughput": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"writeThroughput": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+							},
+						},
+					},
+					MetricTemplates: testMetricTemplate,
+				},
+				Plugins: []pluginSpec{
+					{
+						ID:          "openebs",
+						Label:       "OpenEBS Monitor Plugin",
+						Description: "OpenEBS Monitor Plugin: Monitor OpeneEBS volumes",
+						Interfaces:  []string{"reporter"},
+						APIVersion:  "1",
+					},
+				},
+			},
+		},
+		{
+			name:   "when data has multiple PV value and PV list has one PV",
+			fields: FieldsWithOnePVAndMultiplePVData,
+			want: &report{
+				PersistentVolume: topology{
+					Nodes: map[string]node{
+						"abcdef1234;<persistent_volume>": node{
+							Metrics: map[string]metric{
+								"readIops": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"writeIops": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 5,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"readLatency": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"writeLatency": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"readThroughput": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+								"writeThroughput": {
+									Samples: []sample{
+										{
+											Date:  time.Now(),
+											Value: 0,
+										},
+									},
+									Min: 0,
+									Max: 100,
+								},
+							},
+						},
+					},
+					MetricTemplates: testMetricTemplate,
+				},
+				Plugins: []pluginSpec{
+					{
+						ID:          "openebs",
+						Label:       "OpenEBS Monitor Plugin",
+						Description: "OpenEBS Monitor Plugin: Monitor OpeneEBS volumes",
+						Interfaces:  []string{"reporter"},
+						APIVersion:  "1",
+					},
+				},
+			},
+		},
+		{
+			name:   "when data has multiple PV value and PV list has one PV",
+			fields: FieldsWithNoPV,
+			want: &report{
+				PersistentVolume: topology{
+					Nodes:           nil,
+					MetricTemplates: testMetricTemplate,
+				},
+				Plugins: []pluginSpec{
+					{
+						ID:          "openebs",
+						Label:       "OpenEBS Monitor Plugin",
+						Description: "OpenEBS Monitor Plugin: Monitor OpeneEBS volumes",
+						Interfaces:  []string{"reporter"},
+						APIVersion:  "1",
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -312,14 +537,54 @@ func TestPVMetrics_makeReport(t *testing.T) {
 				Data:      tt.fields.Data,
 				ClientSet: tt.fields.ClientSet,
 			}
-			got, err := p.makeReport()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("PVMetrics.makeReport() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			got := p.makeReport()
+			if tt.want.PersistentVolume.Nodes == nil {
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("PVMetrics.makeReport() = %v, want %v", got, tt.want)
+				}
+			} else {
+				for k, v := range got.PersistentVolume.Nodes {
+					for x, y := range v.Metrics {
+						for i, val := range y.Samples {
+							if !reflect.DeepEqual(val.Value, tt.want.PersistentVolume.Nodes[k].Metrics[x].Samples[i].Value) {
+								t.Errorf("PVMetrics.makeReport() %s, %s = %v, want %v", k, x, val.Value, tt.want.PersistentVolume.Nodes[k].Metrics[x].Samples[i].Value)
+							}
+						}
+					}
+				}
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("PVMetrics.makeReport() = %v, want %v", got, tt.want)
+		})
+	}
+}
+
+func TestPVMetrics_Report(t *testing.T) {
+	type args struct {
+		w http.ResponseWriter
+		r *http.Request
+	}
+	tests := []struct {
+		name   string
+		fields *fields
+		args   args
+	}{
+		{
+			name:   "Test report method",
+			fields: FieldsWithNilValue,
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "/report", nil),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &PVMetrics{
+				Queries:   tt.fields.Queries,
+				PVList:    tt.fields.PVList,
+				Data:      tt.fields.Data,
+				ClientSet: tt.fields.ClientSet,
 			}
+			p.Report(tt.args.w, tt.args.r)
 		})
 	}
 }

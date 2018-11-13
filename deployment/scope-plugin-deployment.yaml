@@ -5,7 +5,7 @@ metadata:
     app: weave-scope
     name: cortex-agent-retriever
   name: openebs-iops-plugin
-  namespace: maya-system
+  namespace: weave
 spec:
   template:
     metadata:
@@ -16,7 +16,7 @@ spec:
       serviceAccountName: weave-scope
       containers:
         - name: openebs-iops-plugin
-          image: openebs/scope-plugin:latest
+          image: openebs/scope-iops:latest
           imagePullPolicy: Always
           securityContext:
             privileged: true

@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
@@ -213,7 +215,7 @@ func TestPVMetrics_UnmarshalResponse(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:   "Successfuly unmarshal the response in Metrics struct",
+			name:   "Successfully unmarshal the response in Metrics struct",
 			fields: FieldsWithNilValue,
 			args: args{
 				response: []byte(`{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"10.16.1.4:9500","job":"cluster_uuid_df75f04a-9ca5-4d19-bdac-05246aee6ddc_openebs-volumes","kubernetes_pod_name":"pvc-f53a1eb1-d8e4-11e8-9e9b-42010a80009a-ctrl-87b9c4fd9-qrn9v","openebs_pv":"pvc-f53a1eb1-d8e4-11e8-9e9b-42010a80009a","openebs_pvc":"demo-vol1-claim"},"value":[1540812781.106,"0"]}]}}`),
@@ -328,5 +330,165 @@ func TestPVMetrics_UpdatePVMetrics(t *testing.T) {
 				t.Errorf("PVMetrics.ClientSet = %v, want.ClientSet %v", p.ClientSet, tt.want.ClientSet)
 			}
 		})
+	}
+}
+
+func TestPVMetrics_GetMetrics(t *testing.T) {
+	var testServer *httptest.Server
+
+	tempURL := URL
+	respHavingNoResult := `{"status":"success","data":{"resultType":"vector","result":[]}}`
+	respHavingResultAsNaN := `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"OpenEBS__iops","instance":"172.17.0.2:9500","job":"cluster_uuid_9aba2480-a180-41ca-b5cb-f4a099376a16_openebs-volumes","kubernetes_pod_name":"pvc-4fa13b09-6242-11e8-a310-1458d00e6b83-ctrl-745784bb48-z9pl8","openebs_pv":"pvc-4fa13b09-6242-11e8-a310-1458d00e6b83"},"value":[1528354477.902, "NaN"]}]}}`
+	respHavingProperResult := `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"OpenEBS__iops","instance":"172.17.0.2:9500","job":"cluster_uuid_9aba2480-a180-41ca-b5cb-f4a099376a16_openebs-volumes","kubernetes_pod_name":"pvc-4fa13b09-6242-11e8-a310-1458d00e6b83-ctrl-745784bb48-z9pl8","openebs_pv":"pvc-4fa13b09-6242-11e8-a310-1458d00e6b83"},"value":[1528354477.902, "5"]}]}}`
+	type args struct {
+		query string
+	}
+	tests := []struct {
+		name    string
+		fields  *fields
+		args    args
+		want    map[string]float64
+		wantErr bool
+		before  func()
+		after   func()
+	}{
+		{
+			name:   "when server is unavailable",
+			fields: FieldsWithNilValue,
+			args: args{
+				query: "/noQuery",
+			},
+			want:    nil,
+			wantErr: true,
+			before: func() {
+				testServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}))
+				URL = testServer.URL
+			},
+			after: func() {
+				URL = tempURL
+				testServer.Close()
+			},
+		},
+		{
+			name:   "when server is available but giving no response",
+			fields: FieldsWithNilValue,
+			args: args{
+				query: "/noQuery",
+			},
+			want:    nil,
+			wantErr: true,
+			before: func() {
+				testServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte{})
+				}))
+				URL = testServer.URL
+			},
+			after: func() {
+				URL = tempURL
+				testServer.Close()
+			},
+		},
+		{
+			name:   "when server is started and giving OK as response",
+			fields: FieldsWithNilValue,
+			args: args{
+				query: "/noQuery",
+			},
+			want:    nil,
+			wantErr: true,
+			before: func() {
+				testServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte(`OK`))
+				}))
+				URL = testServer.URL
+			},
+			after: func() {
+				URL = tempURL
+				testServer.Close()
+			},
+		},
+		{
+			name:   "when server is started and giving proper JSON as response but result is empty",
+			fields: FieldsWithNilValue,
+			args: args{
+				query: "/noQuery",
+			},
+			want:    nil,
+			wantErr: true,
+			before: func() {
+				testServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte(respHavingNoResult))
+				}))
+				URL = testServer.URL
+			},
+			after: func() {
+				URL = tempURL
+				testServer.Close()
+			},
+		},
+		{
+			name:   "when server is started and giving proper JSON as response but value is NaN",
+			fields: FieldsWithNilValue,
+			args: args{
+				query: "/noQuery",
+			},
+			want: map[string]float64{
+				"pvc-4fa13b09-6242-11e8-a310-1458d00e6b83": 0,
+			},
+			wantErr: false,
+			before: func() {
+				testServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte(respHavingResultAsNaN))
+				}))
+				URL = testServer.URL
+			},
+			after: func() {
+				URL = tempURL
+				testServer.Close()
+			},
+		},
+		{
+			name:   "when server is started and giving proper JSON as response",
+			fields: FieldsWithNilValue,
+			args: args{
+				query: "/noQuery",
+			},
+			want: map[string]float64{
+				"pvc-4fa13b09-6242-11e8-a310-1458d00e6b83": 5,
+			},
+			wantErr: false,
+			before: func() {
+				testServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Write([]byte(respHavingProperResult))
+				}))
+				URL = testServer.URL
+			},
+			after: func() {
+				URL = tempURL
+				testServer.Close()
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt.before()
+		t.Run(tt.name, func(t *testing.T) {
+			p := &PVMetrics{
+				Queries:   tt.fields.Queries,
+				PVList:    tt.fields.PVList,
+				Data:      tt.fields.Data,
+				ClientSet: tt.fields.ClientSet,
+			}
+			got, err := p.GetMetrics(tt.args.query)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("PVMetrics.GetMetrics() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("PVMetrics.GetMetrics() = %v, want %v", got, tt.want)
+			}
+		})
+		tt.after()
 	}
 }
